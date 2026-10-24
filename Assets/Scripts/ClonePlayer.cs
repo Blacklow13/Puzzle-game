@@ -125,22 +125,18 @@ public class ClonePlayer : MonoBehaviour
 
     void FixedUpdate()
     {
-        // === ВОСПРОИЗВЕДЕНИЕ ===
+        // === Воспроизведение записей ===
         if (records != null && records.Count > 0)
         {
             float timer = Time.time - startTime;
-
-            // Проигрываем все записи, чьё время уже наступило
             while (index < records.Count && records[index].time <= timer)
             {
                 PlayAction(records[index]);
                 index++;
             }
-
-            // НЕ сбрасываем currentMove — пусть последняя запись сама решит
         }
 
-        // === СОСТОЯНИЯ ===
+        // === Состояния в пространстве ===
         bool centerInStairs = IsPointInTagWithRadius(GetCenterPoint(), "Stairs", centerCheckRadius);
 
         bool bottomOnPlatformLayer  = IsPointInLayer(GetBottomPoint(), platformsLayer, bottomCheckRadius);
@@ -152,7 +148,7 @@ public class ClonePlayer : MonoBehaviour
 
         bool onlyOnStairs = IsOnStairs && !IsOnPlatform && !IsOnStairsTop;
 
-        // === ВЫРАВНИВАНИЕ И БЛОКИРОВКА ===
+        // === Выравнивание и блокировка ===
         if (onlyOnStairs && !wasOnlyStairs)
         {
             hasAligned = false;
@@ -164,7 +160,7 @@ public class ClonePlayer : MonoBehaviour
 
         wasOnlyStairs = onlyOnStairs;
 
-        // === ФИЗИКА ===
+        // === Выбор типа физики взависимости от состояния ===
         bool shouldBeKinematic = onlyOnStairs || (IsOnStairs && IsOnStairsTop);
 
         if (shouldBeKinematic)
@@ -172,13 +168,13 @@ public class ClonePlayer : MonoBehaviour
         else
             rb.bodyType = RigidbodyType2D.Dynamic;
 
-        // === ВВОД ===
+        // === Ввод ===
         Vector2 move = currentMove;
 
         if (lockHorizontal)
             move.x = 0f;
 
-        // === СЧИТАЕМ ЦЕЛЕВУЮ ПОЗИЦИЮ ===
+        // === Считаем целевую позицию ===
         Vector2 targetPos = rb.position;
 
         // Спуск с верха
@@ -206,7 +202,7 @@ public class ClonePlayer : MonoBehaviour
             rb.gravityScale = 1f;
         }
 
-        // === ВЫРАВНИВАНИЕ ===
+        // === Выравнивание ===
         if (onlyOnStairs && !hasAligned)
         {
             Collider2D stairsCol = GetStairsCollider(GetBottomPoint());

@@ -22,7 +22,6 @@ public class PlayerController : MonoBehaviour
     public LayerMask stairsTopLayer;
 
     private Rigidbody2D rb;
-
     private readonly HashSet<Collider2D> platformsInRange = new HashSet<Collider2D>();
 
     public bool IsOnPlatform  = false;
@@ -55,33 +54,56 @@ public class PlayerController : MonoBehaviour
         foreach (var hit in hits)
         {
             if (hit.CompareTag("Stairs"))
+            {
+                ObjectClass objClass = hit.GetComponentInParent<ObjectClass>();
+                if (objClass != null && !objClass.CanPlayerInteract())
+                    continue;
+
                 return hit;
+            }
         }
         return null;
     }
 
-    bool IsPointInTagWithRadius(Vector2 point, string tag, float radius)
+    bool IsPointInStairs(Vector2 point, float radius)
     {
         Collider2D[] hits = Physics2D.OverlapCircleAll(point, radius);
 
         foreach (var hit in hits)
         {
-            if (hit.CompareTag(tag))
+            if (hit.CompareTag("Stairs"))
+            {
+                ObjectClass objClass = hit.GetComponentInParent<ObjectClass>();
+                if (objClass != null && !objClass.CanPlayerInteract())
+                    continue;
+
                 return true;
+            }
         }
         return false;
     }
 
+
     bool IsPointInLayer(Vector2 point, LayerMask mask, float radius)
     {
         Collider2D[] hits = Physics2D.OverlapCircleAll(point, radius, mask);
-        return hits.Length > 0;
+
+        foreach (var hit in hits)
+        {
+            ObjectClass objClass = hit.GetComponentInParent<ObjectClass>();
+            // Если платформа неактивна для игрока, игнорируем её
+            if (objClass != null && !objClass.CanPlayerInteract())
+                continue;
+
+            return true;
+        }
+        return false;
     }
 
     void FixedUpdate()
     {
-        bool centerInStairs = IsPointInTagWithRadius(GetCenterPoint(), "Stairs", centerCheckRadius);
-        bool bottomInStairs = IsPointInTagWithRadius(GetBottomPoint(), "Stairs", bottomCheckRadius);
+        bool centerInStairs = IsPointInStairs(GetCenterPoint(), centerCheckRadius);
+        bool bottomInStairs = IsPointInStairs(GetBottomPoint(), bottomCheckRadius);
 
         bool bottomOnPlatformLayer  = IsPointInLayer(GetBottomPoint(), platformsLayer, bottomCheckRadius);
         bool bottomOnStairsTopLayer = IsPointInLayer(GetBottomPoint(), stairsTopLayer, bottomCheckRadius);
@@ -109,7 +131,6 @@ public class PlayerController : MonoBehaviour
             {
                 float stairsCenterX = stairsCol.bounds.center.x;
                 float currentX = rb.position.x;
-
                 float newX = Mathf.MoveTowards(currentX, stairsCenterX, alignSpeed * Time.fixedDeltaTime);
 
                 if (Mathf.Abs(newX - stairsCenterX) < 0.01f)
@@ -159,7 +180,15 @@ public class PlayerController : MonoBehaviour
             rb.gravityScale = 1f;
         }
 
-        rb.MovePosition(targetPos);
+        if (IsOnStairs || IsOnStairsTop || IsOnPlatform)
+        {
+            rb.MovePosition(targetPos);
+        }
+        else
+        {
+      
+            rb.linearVelocity = new Vector2(h * speed, rb.linearVelocity.y);
+        }
     }
 
     void OnCollisionEnter2D(Collision2D collision)
@@ -167,11 +196,16 @@ public class PlayerController : MonoBehaviour
         if (collision.gameObject.CompareTag("Platform"))
             platformsInRange.Add(collision.collider);
     }
-
     void OnCollisionStay2D(Collision2D collision)
     {
         if (collision.gameObject.CompareTag("Platform"))
-            platformsInRange.Add(collision.collider);
+        {
+            ObjectClass objClass = collision.gameObject.GetComponentInParent<ObjectClass>();
+            if (objClass != null && !objClass.CanPlayerInteract())
+                platformsInRange.Remove(collision.collider); // Платформа стала призрачной — удаляем
+            else
+                platformsInRange.Add(collision.collider);
+        }
     }
 
     void OnCollisionExit2D(Collision2D collision)
@@ -193,15 +227,27 @@ public class PlayerController : MonoBehaviour
 
         Gizmos.color = Color.green;
         Gizmos.DrawLine(center, bottom);
+    }
 
-        if (Application.isPlaying)
-        {
-            Collider2D stairsCol = GetStairsCollider(bottom);
-            if (stairsCol != null)
-            {
-                Gizmos.color = Color.cyan;
-                Gizmos.DrawWireCube(stairsCol.bounds.center, new Vector3(0.1f, 0.5f, 0f));
-            }
-        }
+    public bool CheckIfPlayerIsInAir()
+    {
+        // Если мы на лестнице, мы не падаем
+        if (IsOnStairs || IsOnStairsTop) 
+            return false;
+
+        // Если скорость по Y отрицательная (мы летим вниз), значит мы падаем
+        if (rb.linearVelocity.y < -0.5f) 
+            return true;
+
+        // Если мы не на платформе
+        if (!IsOnPlatform)
+            return true;
+
+        return false;
+    }
+
+    public void Die()
+    {
+        // Заглушка
     }
 }

@@ -5,13 +5,18 @@ public class Button : MonoBehaviour
     [Header("Класс объекта (время)")]
     public ObjectClass.ClassType objectClass = ObjectClass.ClassType.Eternal;
 
-    [Header("Ссылка на дверь")]
+    [Header("Ссылка на дверь (для Door.cs)")]
     public Door targetDoor;
 
     [Header("Настройки")]
     public string activatorTag = "Player";
 
-    private int pressedCount = 0;   // сколько объектов на кнопке
+    public event System.Action OnPressed;
+    public event System.Action OnReleased;
+
+    public bool IsPressed { get; private set; } = false;
+
+    private int pressedCount = 0;
 
     void OnTriggerEnter2D(Collider2D other)
     {
@@ -19,8 +24,15 @@ public class Button : MonoBehaviour
 
         pressedCount++;
 
-        if (pressedCount == 1 && targetDoor != null)
-            targetDoor.Open();
+        if (pressedCount == 1)
+        {
+            IsPressed = true;
+
+            if (targetDoor != null)
+                targetDoor.Open();
+
+            OnPressed?.Invoke();
+        }
     }
 
     void OnTriggerExit2D(Collider2D other)
@@ -33,8 +45,15 @@ public class Button : MonoBehaviour
         {
             pressedCount = 0;
 
-            if (targetDoor != null)
-                targetDoor.Close();
+            if (IsPressed)
+            {
+                IsPressed = false;
+
+                if (targetDoor != null)
+                    targetDoor.Close();
+
+                OnReleased?.Invoke();
+            }
         }
     }
 

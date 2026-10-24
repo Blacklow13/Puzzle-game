@@ -5,29 +5,37 @@ public class Door : MonoBehaviour
     [Header("Класс объекта (время)")]
     public ObjectClass.ClassType objectClass = ObjectClass.ClassType.Eternal;
 
+    [Header("Ссылки")]
+    public Transform doorSprite;
+
     [Header("Настройки")]
     public float moveDuration = 0.3f;
 
     private bool isOpen = false;
 
-    private Vector3 originalScale;
-    private Vector3 originalPosition;
-    private float doorHeight;          // высота двери в мировых координатах
+    private Vector3 originalSpriteScale;
+    private Vector3 originalSpritePosition;
+    private float doorHeight;
 
-    private float currentProgress = 0f;  // 0 = закрыто, 1 = открыто
+    private float currentProgress = 0f;
     private float targetProgress = 0f;
+
+    private BoxCollider2D doorCollider;
 
     void Start()
     {
-        originalScale = transform.localScale;
-        originalPosition = transform.position;
+        doorCollider = GetComponent<BoxCollider2D>();
 
-        // Высота двери = размер коллайдера * scale
-        BoxCollider2D box = GetComponent<BoxCollider2D>();
-        if (box != null)
-            doorHeight = box.size.y * originalScale.y;
+        if (doorSprite != null)
+        {
+            originalSpriteScale = doorSprite.localScale;
+            originalSpritePosition = doorSprite.localPosition;
+        }
+
+        if (doorCollider != null)
+            doorHeight = doorCollider.size.y;
         else
-            doorHeight = originalScale.y;
+            doorHeight = 1f;
     }
 
     public void Open()
@@ -57,13 +65,22 @@ public class Door : MonoBehaviour
             Time.deltaTime / moveDuration
         );
 
-        // Новая высота: 1 -> 0
-        float newScaleY = originalScale.y * (1f - currentProgress);
+        if (doorSprite != null)
+        {
+            float newScaleY = originalSpriteScale.y * (1f - currentProgress);
+            float offsetY = (doorHeight * currentProgress) / 2f;
 
-        // Сдвиг ВВЕРХ: на половину "исчезнувшей" высоты
-        float offsetY = (doorHeight * currentProgress) / 2f;
+            doorSprite.localScale = new Vector3(originalSpriteScale.x, newScaleY, originalSpriteScale.z);
+            doorSprite.localPosition = originalSpritePosition + new Vector3(0f, offsetY, 0f);
+        }
 
-        transform.localScale = new Vector3(originalScale.x, newScaleY, originalScale.z);
-        transform.position = originalPosition + new Vector3(0f, offsetY, 0f);
+        // === Управление коллайдером ===
+        if (doorCollider != null)
+        {
+            if (Mathf.Abs(currentProgress - 1f) < 0.001f)
+                doorCollider.enabled = false;
+            else
+                doorCollider.enabled = true;
+        }
     }
 }
