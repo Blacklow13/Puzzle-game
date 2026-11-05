@@ -13,13 +13,12 @@ public class MultiButtonDoor : MonoBehaviour
 
     [Header("Настройки")]
     public float moveDuration = 1f;
+    public float moveDistance = 2f;
 
     private bool isOpening = false;
     private bool isOpen = false;
 
-    private Vector3 originalSpriteScale;
     private Vector3 originalSpritePosition;
-    private float doorHeight;
 
     private float currentProgress = 0f;
     private float targetProgress = 0f;
@@ -32,14 +31,8 @@ public class MultiButtonDoor : MonoBehaviour
 
         if (doorSprite != null)
         {
-            originalSpriteScale = doorSprite.localScale;
             originalSpritePosition = doorSprite.localPosition;
         }
-
-        if (doorCollider != null)
-            doorHeight = doorCollider.size.y;
-        else
-            doorHeight = 1f;
 
         if (requiredButtons != null)
         {
@@ -77,7 +70,6 @@ public class MultiButtonDoor : MonoBehaviour
     void CheckAllPressed()
     {
         if (isOpen || isOpening) return;
-
         if (requiredButtons == null || requiredButtons.Length == 0) return;
 
         foreach (var button in requiredButtons)
@@ -110,16 +102,7 @@ public class MultiButtonDoor : MonoBehaviour
 
         if (doorSprite != null)
         {
-            float newScaleY = originalSpriteScale.y * (1f - currentProgress);
-            float offsetY = (doorHeight * currentProgress) / 2f;
-
-            doorSprite.localScale = new Vector3(
-                originalSpriteScale.x,
-                newScaleY,
-                originalSpriteScale.z
-            );
-
-            doorSprite.localPosition = originalSpritePosition + new Vector3(0f, offsetY, 0f);
+            doorSprite.localPosition = originalSpritePosition + new Vector3(0f, -moveDistance * currentProgress, 0f);
         }
 
         if (Mathf.Abs(currentProgress - 1f) < 0.001f)

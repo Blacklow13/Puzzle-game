@@ -21,6 +21,10 @@ public class PlayerController : MonoBehaviour
     public LayerMask platformsLayer;
     public LayerMask stairsTopLayer;
 
+    [Header("Звуки шагов")]
+    public float footstepInterval = 0.35f;
+    private float footstepTimer = 0f;
+
     private Rigidbody2D rb;
     private readonly HashSet<Collider2D> platformsInRange = new HashSet<Collider2D>();
 
@@ -83,7 +87,6 @@ public class PlayerController : MonoBehaviour
         return false;
     }
 
-
     bool IsPointInLayer(Vector2 point, LayerMask mask, float radius)
     {
         Collider2D[] hits = Physics2D.OverlapCircleAll(point, radius, mask);
@@ -91,7 +94,6 @@ public class PlayerController : MonoBehaviour
         foreach (var hit in hits)
         {
             ObjectClass objClass = hit.GetComponentInParent<ObjectClass>();
-            // Если платформа неактивна для игрока, игнорируем её
             if (objClass != null && !objClass.CanPlayerInteract())
                 continue;
 
@@ -149,13 +151,18 @@ public class PlayerController : MonoBehaviour
         else
             rb.bodyType = RigidbodyType2D.Dynamic;
 
-        float h = Input.GetAxisRaw("Horizontal");
-        float v = Input.GetAxisRaw("Vertical");
+        float h = 0f;
+        float v = 0f;
+
+        if (Input.GetKey(KeyCode.D)) h = 1f;
+        if (Input.GetKey(KeyCode.A)) h = -1f;
+        if (Input.GetKey(KeyCode.W)) v = 1f;
+        if (Input.GetKey(KeyCode.S)) v = -1f;
 
         if (lockHorizontal)
             h = 0f;
 
-        Vector2 targetPos = rb.position;
+        Vector2 targetPos = transform.position;
 
         if (IsOnStairsTop && !IsOnStairs && v < 0f)
         {
@@ -186,8 +193,26 @@ public class PlayerController : MonoBehaviour
         }
         else
         {
-      
             rb.linearVelocity = new Vector2(h * speed, rb.linearVelocity.y);
+        }
+
+        if ((IsOnPlatform || IsOnStairs || IsOnStairsTop) && Mathf.Abs(h) > 0.1f)
+        {
+            footstepTimer -= Time.fixedDeltaTime;
+            
+            if (footstepTimer <= 0f)
+            {
+                if (AudioManager.Instance != null)
+                {
+                    AudioManager.Instance.PlaySFX(AudioManager.Instance.footstepSound, 0.4f);
+                }
+                
+                footstepTimer = footstepInterval;
+            }
+        }
+        else
+        {
+            footstepTimer = 0f; 
         }
     }
 
@@ -196,13 +221,14 @@ public class PlayerController : MonoBehaviour
         if (collision.gameObject.CompareTag("Platform"))
             platformsInRange.Add(collision.collider);
     }
+
     void OnCollisionStay2D(Collision2D collision)
     {
         if (collision.gameObject.CompareTag("Platform"))
         {
             ObjectClass objClass = collision.gameObject.GetComponentInParent<ObjectClass>();
             if (objClass != null && !objClass.CanPlayerInteract())
-                platformsInRange.Remove(collision.collider); // Платформа стала призрачной — удаляем
+                platformsInRange.Remove(collision.collider);
             else
                 platformsInRange.Add(collision.collider);
         }
@@ -231,15 +257,12 @@ public class PlayerController : MonoBehaviour
 
     public bool CheckIfPlayerIsInAir()
     {
-        // Если мы на лестнице, мы не падаем
         if (IsOnStairs || IsOnStairsTop) 
             return false;
 
-        // Если скорость по Y отрицательная (мы летим вниз), значит мы падаем
         if (rb.linearVelocity.y < -0.5f) 
             return true;
 
-        // Если мы не на платформе
         if (!IsOnPlatform)
             return true;
 
@@ -248,6 +271,5 @@ public class PlayerController : MonoBehaviour
 
     public void Die()
     {
-        // Заглушка
     }
 }

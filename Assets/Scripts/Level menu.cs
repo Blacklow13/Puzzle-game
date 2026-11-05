@@ -1,3 +1,4 @@
+using System;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
@@ -14,32 +15,28 @@ public class LevelMenu : MonoBehaviour
     public GameObject accountPanel;
     public GameObject soundPanel;
     public GameObject finishPanel;
+    public GameObject gameEndingPanel;
 
     [Header("Сцены")]
-    public string levelsMenuSceneName = "levelsMenu";
+    public string levelsMenuSceneName = "Menu";
 
-    [Header("Уровни")]
+    [Header("Настройки уровня")]
+    public int levelNumber = 1;
     public int maxLevel = 7;
+    public bool levelFinished = false;
 
     [Header("Ссылка на уровень")]
     public LevelManager levelManager;
 
-    private int currentLevelNumber = 1;
+    [Header("Ссылка на Тутор")]
+    public TutorialManager tutorialManager;
 
     void Start()
     {
-
-
-        if (accountPanel != null)
-            accountPanel.SetActive(false);
-
-        if (soundPanel != null)
-            soundPanel.SetActive(false);
-
-        if (finishPanel != null)
-            finishPanel.SetActive(false);
-
-        
+        if (accountPanel != null) accountPanel.SetActive(false);
+        if (soundPanel != null) soundPanel.SetActive(false);
+        if (finishPanel != null) finishPanel.SetActive(false);
+        if (gameEndingPanel != null) gameEndingPanel.SetActive(false);
     }
 
     public void OnAccountClicked()
@@ -47,9 +44,7 @@ public class LevelMenu : MonoBehaviour
         if (accountPanel != null)
         {
             accountPanel.SetActive(true);
-
-            if (soundPanel != null)
-                soundPanel.SetActive(false);
+            gameObject.SetActive(false);
         }
     }
 
@@ -64,9 +59,7 @@ public class LevelMenu : MonoBehaviour
         if (soundPanel != null)
         {
             soundPanel.SetActive(true);
-
-            if (accountPanel != null)
-                accountPanel.SetActive(false);
+            if (accountPanel != null) accountPanel.SetActive(false);
         }
     }
 
@@ -77,8 +70,6 @@ public class LevelMenu : MonoBehaviour
 
     public void OnExitClicked()
     {
-        SaveProgress();
-
         Time.timeScale = 1f;
 
 #if UNITY_EDITOR
@@ -89,9 +80,8 @@ public class LevelMenu : MonoBehaviour
     }
 
     public void GoToNextLevel()
-    {   
-        currentLevelNumber = GetLevelNumber(SceneManager.GetActiveScene().name);
-        int nextLevel = currentLevelNumber + 1;
+    {
+        int nextLevel = levelNumber + 1;
 
         if (nextLevel > maxLevel)
         {
@@ -100,45 +90,55 @@ public class LevelMenu : MonoBehaviour
             return;
         }
 
-        SaveProgress();
-
         Time.timeScale = 1f;
-
         SceneManager.LoadScene("Level " + nextLevel);
     }
 
     public void OpenFinishScreen()
     {
+        levelFinished = true;
         SaveProgress();
-
         Time.timeScale = 0f;
 
-        if (accountPanel != null)
-            accountPanel.SetActive(false);
-
-        if (soundPanel != null)
-            soundPanel.SetActive(false);
-
-        if (finishPanel != null)
-            finishPanel.SetActive(true);
+        if (accountPanel != null) accountPanel.SetActive(false);
+        if (soundPanel != null) soundPanel.SetActive(false);
+        if (finishPanel != null) finishPanel.SetActive(true);
     }
 
-    int GetLevelNumber(string sceneName)
+    public void OpenGameEndingScreen()
     {
-        string[] parts = sceneName.Split(' ');
+        levelFinished = true;
+        Time.timeScale = 0f;
 
-        if (parts.Length >= 2)
-        {
-            int number;
-            if (int.TryParse(parts[1], out number))
-                return number;
-        }
+        if (accountPanel != null) accountPanel.SetActive(false);
+        if (soundPanel != null) soundPanel.SetActive(false);
+        if (finishPanel != null) finishPanel.SetActive(false);
+        if (gameEndingPanel != null) gameEndingPanel.SetActive(true);
+    }
 
-        return 1;
+    public bool IsFinishScreenOpen()
+    {
+        return finishPanel != null && finishPanel.activeSelf;
     }
 
     void SaveProgress()
     {
-        Debug.Log("[SAVE] Прогресс сохранён");
+        ApiManager.Instance.SaveProgress(levelNumber);
+        SaveLevelCompleted(levelNumber);
+        Debug.Log($"[SAVE] Прогресс для уровня {levelNumber} сохранен локально.");
+    }
+
+    public void SaveLevelCompleted(int level)
+    {
+        PlayerPrefs.SetInt("Level_" + level + "_Completed", 1);
+
+        int nextLevel = level + 1;
+        if (nextLevel <= maxLevel)
+        {
+            PlayerPrefs.SetInt("Level_" + nextLevel + "_Unlocked", 1);
+        }
+
+        PlayerPrefs.Save();
+        Debug.Log($"[PLAYERPREFS] Уровень {level} пройден. Разблокирован уровень {nextLevel}.");
     }
 }

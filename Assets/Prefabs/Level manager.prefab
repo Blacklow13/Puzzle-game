@@ -48,5 +48,10 @@ MonoBehaviour:
   Player: {fileID: 0}
   timerText: {fileID: 0}
   levelMenu: {fileID: 0}
+  pastIcon: {fileID: 0}
+  presentIcon: {fileID: 0}
+  isPresentState: 0
   records: []
   levelTime: 6
+  restartKey: 120
+  collisionCheckDelay: 0.1

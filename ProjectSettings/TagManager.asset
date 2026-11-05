@@ -27,7 +27,7 @@ TagManager:
   - StairsTop
   - Doors
   - Buttons
-  - 
+  - backg
   - 
   - 
   - 
@@ -49,6 +49,9 @@ TagManager:
     locked: 0
   - name: New Layer
     uniqueID: 1802038029
+    locked: 0
+  - name: background
+    uniqueID: 89641297
     locked: 0
   m_RenderingLayers:
   - Default

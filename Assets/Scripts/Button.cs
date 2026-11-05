@@ -28,6 +28,9 @@ public class Button : MonoBehaviour
         {
             IsPressed = true;
 
+            if (AudioManager.Instance != null)
+                AudioManager.Instance.PlaySFX(AudioManager.Instance.buttonClick);
+
             if (targetDoor != null)
                 targetDoor.Open();
 

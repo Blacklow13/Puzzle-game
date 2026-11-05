@@ -25,11 +25,8 @@ public class LoginMenu : MonoBehaviour
     public string levelSceneName = "Level1";
 
     private readonly string[] takenLogins = { "admin", "test", "user" };
-    private readonly string[] takenEmails = { "test@mail.ru", "admin@mail.ru" };
 
     private bool isRegisterMode = false;
-    private bool isEmailStep = false;
-    private string savedEmail = "";
 
     void Start()
     {
@@ -48,14 +45,11 @@ public class LoginMenu : MonoBehaviour
         bottomButton.onClick.AddListener(OnRegisterClicked);
         backButton.onClick.AddListener(OnBackClicked);
         sendButton.onClick.AddListener(OnSendClicked);
-
-        HideError();
     }
 
     void OnLoginClicked()
     {
         isRegisterMode = false;
-        isEmailStep = false;
 
         topButton.gameObject.SetActive(false);
         bottomButton.gameObject.SetActive(false);
@@ -87,8 +81,6 @@ public class LoginMenu : MonoBehaviour
     void OnRegisterClicked()
     {
         isRegisterMode = true;
-        isEmailStep = true;
-        savedEmail = "";
 
         topButton.gameObject.SetActive(false);
         bottomButton.gameObject.SetActive(false);
@@ -102,12 +94,12 @@ public class LoginMenu : MonoBehaviour
         bottomInputField.text = "";
 
         topInputField.contentType = TMP_InputField.ContentType.Standard;
-        bottomInputField.contentType = TMP_InputField.ContentType.Standard;
+        bottomInputField.contentType = TMP_InputField.ContentType.Password;
 
         topInputField.placeholder.GetComponent<TMP_Text>().text = "Логин";
-        bottomInputField.placeholder.GetComponent<TMP_Text>().text = "Почта";
+        bottomInputField.placeholder.GetComponent<TMP_Text>().text = "Пароль";
 
-        bottomInputField.ActivateInputField();
+        topInputField.ActivateInputField();
         HideError();
 
         topInputField.onSubmit.RemoveAllListeners();
@@ -134,68 +126,22 @@ public class LoginMenu : MonoBehaviour
             return;
         }
 
-        if (!isRegisterMode)
-        {
-            if (string.IsNullOrEmpty(topValue) || string.IsNullOrEmpty(bottomValue))
-            {
-                ShowError("Заполните все поля");
-                return;
-            }
-            // Заглушка
-            Debug.Log($"[LOGIN] Логин: {topValue}, Пароль: {bottomValue}");
-            SceneManager.LoadScene(levelSceneName);
-            return;
-        }
-
-        if (isEmailStep)
-        {
-            if (string.IsNullOrEmpty(topValue))
-            {
-                ShowError("Введите логин");
-                topInputField.ActivateInputField();
-                return;
-            }
-
-            if (IsLoginTaken(topValue))
-            {
-                ShowError("Логин уже занят");
-                topInputField.ActivateInputField();
-                return;
-            }
-
-            string emailError = GetEmailError(bottomValue);
-            if (emailError != null)
-            {
-                ShowError(emailError);
-                bottomInputField.ActivateInputField();
-                return;
-            }
-
-            if (IsEmailTaken(bottomValue))
-            {
-                ShowError("Почта уже зарегистрирована");
-                bottomInputField.ActivateInputField();
-                return;
-            }
-
-            savedEmail = bottomValue;
-            // Заглушка
-            Debug.Log($"[REGISTER] Логин: {topValue}, Почта: {savedEmail}");
-
-            isEmailStep = false;
-
-            bottomInputField.text = "";
-            bottomInputField.contentType = TMP_InputField.ContentType.Password;
-            bottomInputField.placeholder.GetComponent<TMP_Text>().text = "Пароль";
-
-            bottomInputField.ActivateInputField();
-            HideError();
-            return;
-        }
-
         if (string.IsNullOrEmpty(topValue) || string.IsNullOrEmpty(bottomValue))
         {
             ShowError("Заполните все поля");
+            return;
+        }
+
+        if (!isRegisterMode)
+        {
+            ApiManager.Instance.Login(topValue, bottomValue,
+                onSuccess: (msg) => {
+                    Debug.Log("Успешный вход!");
+                    SceneManager.LoadScene(levelSceneName);
+                },
+                onError: (err) => {
+                    ShowError("Неверный логин или пароль");
+                });
             return;
         }
 
@@ -206,9 +152,20 @@ public class LoginMenu : MonoBehaviour
             bottomInputField.ActivateInputField();
             return;
         }
-        // Заглушка
-        Debug.Log($"[REGISTER] Логин: {topValue}, Почта: {savedEmail}, Пароль: {bottomValue}");
-        SceneManager.LoadScene(levelSceneName);
+
+        ApiManager.Instance.Register(topValue, bottomValue,
+            onSuccess: (msg) =>
+            {
+                Debug.Log("Аккаунт создан! Выполняем вход...");
+
+                ApiManager.Instance.Login(topValue, bottomValue,
+                    onSuccess: (loginMsg) => { SceneManager.LoadScene(levelSceneName); },
+                    onError: (loginErr) => { ShowError("Ошибка входа после регистрации"); });
+            },
+            onError: (err) =>
+            {
+                ShowError("Ошибка: логин уже занят или данные неверны");
+            });
     }
 
     void OnSendClicked()
@@ -242,55 +199,11 @@ public class LoginMenu : MonoBehaviour
         return null;
     }
 
-    string GetEmailError(string email)
-    {
-        if (email.Length < 5)
-            return "Почта слишком короткая";
-
-        if (email.Contains(" "))
-            return "Почта не должна содержать пробелы";
-
-        int atIndex = email.IndexOf('@');
-        if (atIndex < 1)
-            return "Почта должна содержать символ @";
-
-        if (email.IndexOf('@', atIndex + 1) != -1)
-            return "Почта должна содержать только один символ @";
-
-        string localPart = email.Substring(0, atIndex);
-        if (localPart.Length < 1)
-            return "Введите имя почты до символа @";
-
-        string domainPart = email.Substring(atIndex + 1);
-        if (domainPart.Length < 3)
-            return "Введите домен после символа @";
-
-        int dotIndex = domainPart.IndexOf('.');
-        if (dotIndex < 1)
-            return "Почта должна содержать точку в домене";
-
-        string tld = domainPart.Substring(dotIndex + 1);
-        if (tld.Length < 2)
-            return "Домен должен быть не короче 2 символов";
-
-        return null;
-    }
-
     bool IsLoginTaken(string login)
     {
         foreach (var taken in takenLogins)
         {
             if (string.Equals(taken, login, System.StringComparison.OrdinalIgnoreCase))
-                return true;
-        }
-        return false;
-    }
-
-    bool IsEmailTaken(string email)
-    {
-        foreach (var taken in takenEmails)
-        {
-            if (string.Equals(taken, email, System.StringComparison.OrdinalIgnoreCase))
                 return true;
         }
         return false;
@@ -333,9 +246,6 @@ public class LoginMenu : MonoBehaviour
         bottomInputField.onSubmit.RemoveAllListeners();
 
         isRegisterMode = false;
-        isEmailStep = false;
-        savedEmail = "";
-
         HideError();
     }
 }

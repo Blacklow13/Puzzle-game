@@ -1,2 +1,12 @@
-# created by virtualenv automatically
-*
+__pycache__/
+*.py[cod]
+Lib/
+pyvenv.cfg
+var/
+.idea/
+
+# Секреты
+.env
+*.env
+.env.*
+!.env.example

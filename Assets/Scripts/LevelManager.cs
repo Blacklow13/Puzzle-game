@@ -2,15 +2,22 @@ using UnityEngine;
 using UnityEngine.SceneManagement;
 using System.Collections.Generic;
 using TMPro;
+using UnityEngine.EventSystems;
 
 public class LevelManager : MonoBehaviour
 {
+    public static LevelManager Instance;
     public ClonePlayer Clone;
     public PlayerController Player;
 
     [Header("UI")]
     public TMP_Text timerText;
     public GameObject levelMenu;
+
+    [Header("Состояние (Прошлое/Настоящее)")]
+    public GameObject pastIcon;
+    public GameObject presentIcon;
+    public bool isPresentState = false;
 
     [System.Serializable]
     public struct ActionData
@@ -39,6 +46,9 @@ public class LevelManager : MonoBehaviour
     private bool recordingStopped = false;
 
     private bool isPaused = false;
+    
+    public bool isTyping = false; 
+    public bool isTutorialOpen = false; // <--- ДОБАВЛЕНО
 
     void Start()
     {
@@ -48,7 +58,14 @@ public class LevelManager : MonoBehaviour
         if (levelMenu != null)
             levelMenu.SetActive(false);
 
+        
+        UpdateStateUI();
         UpdateTimerUI();
+    }
+
+    void Awake()
+    {
+        Instance = this;
     }
 
     void AddRecord(string button, float time)
@@ -61,14 +78,35 @@ public class LevelManager : MonoBehaviour
         records.Add(data);
     }
 
+    void UpdateStateUI()
+    {
+        if (pastIcon != null) pastIcon.SetActive(!isPresentState);
+        if (presentIcon != null) presentIcon.SetActive(isPresentState);
+    }
+
     void Update()
     {
-        if (isGameOver) return;
-
-        if (Input.GetKeyDown(KeyCode.Escape))
+         if (Input.GetKeyDown(KeyCode.Escape))
+    {
+        // Если тутор открыт — просто выходим. Esc закроет сам тутор в LateUpdate.
+        if (TutorialManager.Instance != null && TutorialManager.Instance.tutorialPanel.activeSelf)
         {
-            TogglePause();
+            return;
         }
+
+        TogglePause();
+        return;
+    }
+
+    if (isPaused)
+    {
+        if (!isTyping && EventSystem.current != null && EventSystem.current.currentSelectedGameObject != null)
+            EventSystem.current.SetSelectedGameObject(null);
+
+        return;
+    }
+
+        if (isGameOver) return;
 
         if (Input.GetKeyDown(restartKey))
         {
@@ -76,13 +114,15 @@ public class LevelManager : MonoBehaviour
             return;
         }
 
-    
         if (!cloneSpawned)
         {
             if (records.Count > 0 && !playerStartMoving)
             {
                 playerStartMoving = true;
                 startTime = Time.time;
+
+                if (AudioManager.Instance != null)
+                    AudioManager.Instance.StartClockTick();
             }
 
             float t = 0f;
@@ -135,17 +175,20 @@ public class LevelManager : MonoBehaviour
 
             UpdateTimerUI();
 
-
             if (t >= levelTime)
             {
                 SpawnClone();
             }
         }
 
-        // Проверка на смерть 
         if (Player.CheckIfPlayerIsInAir() || CheckPlayerInCloneCollision())
         {
-            Debug.Log("[GAMEOVER] Смерть");
+            GameOver();
+            return;
+        }
+
+        if (cloneSpawned && Clone.CheckIfCloneIsInAir())
+        {
             GameOver();
             return;
         }
@@ -154,7 +197,6 @@ public class LevelManager : MonoBehaviour
     void UpdateTimerUI()
     {
         if (timerText == null) return;
-
         if (cloneSpawned) return;
 
         float t = 0f;
@@ -177,17 +219,21 @@ public class LevelManager : MonoBehaviour
         cloneSpawned = true;
         recordingStopped = true;
         cloneSpawnTime = Time.time;
+        
+        isPresentState = true;
+        UpdateStateUI();
 
         if (timerText != null)
-            timerText.text = "Клон!";
+            timerText.text = "Время вышло";
+
+        if (AudioManager.Instance != null)
+            AudioManager.Instance.StopClockTick();
+            AudioManager.Instance.PlaySFX(AudioManager.Instance.changePhase);
 
         if (Clone == null)
         {
-            Debug.LogError("Clone не назначен!");
             return;
         }
-
-        Debug.Log($"[SPAWN] Записано {records.Count} действий");
 
         Clone.SetRecords(records);
         Clone.gameObject.SetActive(true);
@@ -198,7 +244,9 @@ public class LevelManager : MonoBehaviour
         if (isGameOver) return;
         isGameOver = true;
 
-        Player.Die();
+        if (Player != null) Player.Die();
+        if (Clone != null && cloneSpawned) Clone.Die();
+
         RestartLevel();
     }
 
@@ -206,8 +254,7 @@ public class LevelManager : MonoBehaviour
     {
         if (Player == null || Clone == null) return false;
         if (!cloneSpawned) return false;
-        
-        if (Time.time - cloneSpawnTime < collisionCheckDelay) return false; 
+        if (Time.time - cloneSpawnTime < collisionCheckDelay) return false;
 
         Collider2D playerCol = Player.GetComponentInChildren<Collider2D>();
         Collider2D cloneCol = Clone.GetComponentInChildren<Collider2D>();
@@ -224,13 +271,47 @@ public class LevelManager : MonoBehaviour
         return false;
     }
 
+    public void TogglePauseAndStopSFX()
+    {
+        if (levelMenu != null)
+        {
+            LevelMenu menuScript = levelMenu.GetComponent<LevelMenu>();
+
+            if (menuScript != null && !menuScript.levelFinished && !menuScript.IsFinishScreenOpen())
+            {
+                isPaused = !isPaused;
+                Time.timeScale = isPaused ? 0f : 1f;
+
+                if (AudioManager.Instance != null)
+                {
+                    if (isPaused)
+                    {
+                        AudioManager.Instance.PauseClockTick();
+                        
+                        if (AudioManager.Instance.sfxSource != null)
+                            AudioManager.Instance.sfxSource.Stop();
+                    }
+                    else
+                    {
+                        AudioManager.Instance.ResumeClockTick();
+                    }
+                }
+            }
+        }
+    }
+
     public void TogglePause()
     {
-        isPaused = !isPaused;
-        Time.timeScale = isPaused ? 0f : 1f;
-
         if (levelMenu != null)
-            levelMenu.SetActive(isPaused);
+        {
+            LevelMenu menuScript = levelMenu.GetComponent<LevelMenu>();
+
+            if (menuScript != null && !menuScript.levelFinished && !menuScript.IsFinishScreenOpen())
+            {
+                TogglePauseAndStopSFX();
+                levelMenu.SetActive(isPaused);
+            }
+        }
     }
 
     public void RestartLevel()

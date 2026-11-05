@@ -51,10 +51,6 @@ public class ClonePlayer : MonoBehaviour
             platformsLayer    = player.platformsLayer;
             stairsTopLayer    = player.stairsTopLayer;
         }
-        else
-        {
-            Debug.LogError("PlayerController не назначен!");
-        }
     }
 
     public void SetRecords(List<LevelManager.ActionData> newRecords)
@@ -100,19 +96,31 @@ public class ClonePlayer : MonoBehaviour
         foreach (var hit in hits)
         {
             if (hit.CompareTag("Stairs"))
+            {
+                // ИСПРАВЛЕНИЕ: Игнорируем лестницу, если клон не может с ней взаимодействовать
+                ObjectClass objClass = hit.GetComponentInParent<ObjectClass>();
+                if (objClass != null && !objClass.CanCloneInteract()) continue;
+
                 return hit;
+            }
         }
         return null;
     }
 
-    bool IsPointInTagWithRadius(Vector2 point, string tag, float radius)
+    bool IsPointInStairs(Vector2 point, float radius)
     {
         Collider2D[] hits = Physics2D.OverlapCircleAll(point, radius);
 
         foreach (var hit in hits)
         {
-            if (hit.CompareTag(tag))
+            if (hit.CompareTag("Stairs"))
+            {
+                // ИСПРАВЛЕНИЕ: Проверка класса
+                ObjectClass objClass = hit.GetComponentInParent<ObjectClass>();
+                if (objClass != null && !objClass.CanCloneInteract()) continue;
+
                 return true;
+            }
         }
         return false;
     }
@@ -120,12 +128,20 @@ public class ClonePlayer : MonoBehaviour
     bool IsPointInLayer(Vector2 point, LayerMask mask, float radius)
     {
         Collider2D[] hits = Physics2D.OverlapCircleAll(point, radius, mask);
-        return hits.Length > 0;
+
+        foreach (var hit in hits)
+        {
+            // ИСПРАВЛЕНИЕ: Проверка класса
+            ObjectClass objClass = hit.GetComponentInParent<ObjectClass>();
+            if (objClass != null && !objClass.CanCloneInteract()) continue;
+
+            return true;
+        }
+        return false;
     }
 
     void FixedUpdate()
     {
-        // === Воспроизведение записей ===
         if (records != null && records.Count > 0)
         {
             float timer = Time.time - startTime;
@@ -136,8 +152,7 @@ public class ClonePlayer : MonoBehaviour
             }
         }
 
-        // === Состояния в пространстве ===
-        bool centerInStairs = IsPointInTagWithRadius(GetCenterPoint(), "Stairs", centerCheckRadius);
+        bool centerInStairs = IsPointInStairs(GetCenterPoint(), centerCheckRadius);
 
         bool bottomOnPlatformLayer  = IsPointInLayer(GetBottomPoint(), platformsLayer, bottomCheckRadius);
         bool bottomOnStairsTopLayer = IsPointInLayer(GetBottomPoint(), stairsTopLayer, bottomCheckRadius);
@@ -148,7 +163,6 @@ public class ClonePlayer : MonoBehaviour
 
         bool onlyOnStairs = IsOnStairs && !IsOnPlatform && !IsOnStairsTop;
 
-        // === Выравнивание и блокировка ===
         if (onlyOnStairs && !wasOnlyStairs)
         {
             hasAligned = false;
@@ -160,7 +174,6 @@ public class ClonePlayer : MonoBehaviour
 
         wasOnlyStairs = onlyOnStairs;
 
-        // === Выбор типа физики взависимости от состояния ===
         bool shouldBeKinematic = onlyOnStairs || (IsOnStairs && IsOnStairsTop);
 
         if (shouldBeKinematic)
@@ -168,16 +181,13 @@ public class ClonePlayer : MonoBehaviour
         else
             rb.bodyType = RigidbodyType2D.Dynamic;
 
-        // === Ввод ===
         Vector2 move = currentMove;
 
         if (lockHorizontal)
             move.x = 0f;
 
-        // === Считаем целевую позицию ===
-        Vector2 targetPos = rb.position;
+        Vector2 targetPos = transform.position;
 
-        // Спуск с верха
         if (IsOnStairsTop && !IsOnStairs && move.y < 0f)
         {
             rb.gravityScale = 0f;
@@ -186,7 +196,6 @@ public class ClonePlayer : MonoBehaviour
             return;
         }
 
-        // Обычное движение
         if (IsOnStairs)
         {
             rb.gravityScale = 0f;
@@ -202,7 +211,6 @@ public class ClonePlayer : MonoBehaviour
             rb.gravityScale = 1f;
         }
 
-        // === Выравнивание ===
         if (onlyOnStairs && !hasAligned)
         {
             Collider2D stairsCol = GetStairsCollider(GetBottomPoint());
@@ -218,19 +226,39 @@ public class ClonePlayer : MonoBehaviour
             }
         }
 
-        rb.MovePosition(targetPos);
+        // Если клон на лестнице/платформе — двигаем напрямую. 
+        // В воздухе — даем физике тянуть его вниз.
+        if (IsOnStairs || IsOnStairsTop || IsOnPlatform)
+        {
+            rb.MovePosition(targetPos);
+        }
+        else
+        {
+            rb.linearVelocity = new Vector2(move.x * speed, rb.linearVelocity.y);
+        }
     }
 
     void OnCollisionEnter2D(Collision2D collision)
     {
         if (collision.gameObject.CompareTag("Platform"))
-            platformsInRange.Add(collision.collider);
+        {
+            // ИСПРАВЛЕНИЕ: не добавляем платформу, если клон сквозь нее проваливается
+            ObjectClass objClass = collision.gameObject.GetComponentInParent<ObjectClass>();
+            if (objClass == null || objClass.CanCloneInteract())
+                platformsInRange.Add(collision.collider);
+        }
     }
 
     void OnCollisionStay2D(Collision2D collision)
     {
         if (collision.gameObject.CompareTag("Platform"))
-            platformsInRange.Add(collision.collider);
+        {
+            ObjectClass objClass = collision.gameObject.GetComponentInParent<ObjectClass>();
+            if (objClass == null || objClass.CanCloneInteract())
+                platformsInRange.Add(collision.collider);
+            else
+                platformsInRange.Remove(collision.collider); // Удаляем, если платформа стала недоступной
+        }
     }
 
     void OnCollisionExit2D(Collision2D collision)
@@ -252,5 +280,20 @@ public class ClonePlayer : MonoBehaviour
 
         Gizmos.color = Color.green;
         Gizmos.DrawLine(center, bottom);
+    }
+
+    public bool CheckIfCloneIsInAir()
+    {
+        if (!IsOnStairs && !IsOnPlatform && !IsOnStairsTop)
+        {
+            if (rb.linearVelocity.y < -0.1f)
+                return true;
+        }
+        return false;
+    }
+
+    public void Die()
+    {
+        Debug.Log("[CLONE] Клон упал и умер!");
     }
 }
