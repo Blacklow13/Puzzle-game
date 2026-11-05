@@ -39,7 +39,6 @@ public class FinishMenu : MonoBehaviour
         if (soundPanel != null)
             soundPanel.SetActive(false);
 
-        // Текущий уровень по названию сцены
         string currentScene = SceneManager.GetActiveScene().name;
 
         for (int i = 0; i < levelScenes.Length; i++)
@@ -52,7 +51,6 @@ public class FinishMenu : MonoBehaviour
         }
     }
 
-    // === Аккаунт ===
     void OnAccountClicked()
     {
         if (accountPanel != null)
@@ -62,21 +60,14 @@ public class FinishMenu : MonoBehaviour
             if (soundPanel != null)
                 soundPanel.SetActive(false);
         }
-        // Заглушка
-        Debug.Log("[FINISH MENU] Открыт раздел «Аккаунт»");
     }
 
-    // === В меню выбора уровня ===
     void OnMainMenuClicked()
     {
         Time.timeScale = 1f;
-        // Заглушка
-        Debug.Log("[FINISH MENU] Переход в меню выбора уровня");
-
         SceneManager.LoadScene(levelsMenuSceneName);
     }
 
-    // === Звук ===
     void OnSoundClicked()
     {
         if (soundPanel != null)
@@ -86,27 +77,19 @@ public class FinishMenu : MonoBehaviour
             if (accountPanel != null)
                 accountPanel.SetActive(false);
         }
-        // Заглушка
-        Debug.Log("[FINISH MENU] Открыт раздел «Звук»");
     }
 
-    // === Сохранение ===
     void OnSaveClicked()
     {
         SaveProgress();
     }
 
-    // === Следующий уровень ===
     void OnNextLevelClicked()
     {
         int nextIndex = currentLevelIndex + 1;
 
         if (nextIndex >= levelScenes.Length)
         {
-            // Заглушка
-            Debug.Log("[FINISH MENU] Все уровни пройдены!");
-
-            // Возврат в  меню выбора уровня
             Time.timeScale = 1f;
             SceneManager.LoadScene(levelsMenuSceneName);
             return;
@@ -117,19 +100,14 @@ public class FinishMenu : MonoBehaviour
         Time.timeScale = 1f;
 
         string nextScene = levelScenes[nextIndex];
-        Debug.Log($"[FINISH MENU] Переход на следующий уровень: {nextScene}");
-
         SceneManager.LoadScene(nextScene);
     }
 
-    // === ВЫЙТИ ===
     void OnExitClicked()
     {
         SaveProgress();
 
         Time.timeScale = 1f;
-
-        Debug.Log("[FINISH MENU] Сохранение + выход из игры");
 
 #if UNITY_EDITOR
         UnityEditor.EditorApplication.isPlaying = false;
@@ -138,13 +116,8 @@ public class FinishMenu : MonoBehaviour
 #endif
     }
 
-    // === СОХРАНЕНИЕ ===
     void SaveProgress()
     {
-        // ЗАГЛУШКА — потом заменить на запрос к бекенду
         Debug.Log("[SAVE] Прогресс сохранён");
-
-        // TODO: отправка на сервер
-        // ApiClient.SaveProgress(...);
     }
 }
